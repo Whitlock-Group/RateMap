@@ -844,18 +844,8 @@ def data_loader(mat_file, imu_file=None, sync_file=None):
 
     time_bin_start = ts[0] - 0.5 / new_frame_rate
     time_bins = np.arange(pdd[2] + 1) / new_frame_rate + time_bin_start
-    time_bins = time_bins - time_bins[0]
 
     frame_times = np.arange(pdd[2]) / new_frame_rate + 0.5 / new_frame_rate
-
-    mat_data['trackingTS'] = np.ravel(np.array([frame_times[0], frame_times[-1]]))
-    mat_data['sessionTS'] = np.ravel(np.array([time_bins[0], time_bins[-1]]))
-    mat_data['time_bins'] = time_bins
-    mat_data['frame_times'] = frame_times
-    mat_data['n_session'] = 1
-    mat_data['framerate'] = new_frame_rate
-    mat_data['overall_framerate'] = new_frame_rate
-    mat_data['session_indicator'] = np.ones(int(pdd[2]), 'i')
 
     kk = list(mat_data.keys())
     cell_count = 0
@@ -869,6 +859,17 @@ def data_loader(mat_file, imu_file=None, sync_file=None):
             valid_cell_data = cell_data[valid_ind]
             valid_cell_data = valid_cell_data - time_bins[0]
             mat_data['cell_' + cell_index_str] = valid_cell_data
+
+    time_bins = time_bins - time_bins[0]
+
+    mat_data['trackingTS'] = np.ravel(np.array([frame_times[0], frame_times[-1]]))
+    mat_data['sessionTS'] = np.ravel(np.array([time_bins[0], time_bins[-1]]))
+    mat_data['time_bins'] = time_bins
+    mat_data['frame_times'] = frame_times
+    mat_data['n_session'] = 1
+    mat_data['framerate'] = new_frame_rate
+    mat_data['overall_framerate'] = new_frame_rate
+    mat_data['session_indicator'] = np.ones(int(pdd[2]), 'i')
 
     if cell_count == 0:
         raise ValueError('No cell data include. Process will be stopped.')

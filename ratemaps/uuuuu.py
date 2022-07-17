@@ -59,7 +59,7 @@ def map_factor_to_bins(factors, bins):
         factor_bin_vals[:] = np.nan
         for i in range(1, len(da_bin), 1):
             valid_ind = (da_factor > da_bin[i - 1]) * (da_factor <= da_bin[i])
-            factor_bin_vals[valid_ind] = i
+            factor_bin_vals[valid_ind] = i - 1
         binned_factors[da_key] = factor_bin_vals
     return binned_factors
 
@@ -85,6 +85,8 @@ def get_1d_factor_bin_occ(binned_factors, n_bins, frame_validating, frame_rate, 
             for i in range(n_bins):
                 binnocc = frame_validating * (factor_bin_vals == i)
                 binned_occ[i] = float(np.sum(binnocc)) / float(frame_rate)  # in sec
+
+
         else:
             for i in range(n_bins):
                 binnocc = frame_validating * (factor_bin_vals == i)
@@ -94,6 +96,8 @@ def get_1d_factor_bin_occ(binned_factors, n_bins, frame_validating, frame_rate, 
                     part_mat = float(np.sum(binnocc * scount)) / float(frame_rate[j])  # in sec
                     total_mat.append(part_mat)
                 binned_occ[i] = np.sum(total_mat)
+
+
 
         binned_occ_dict[da_key] = binned_occ
     return binned_occ_dict
@@ -668,7 +672,7 @@ def get_shuffled_data(factors, bins, factor_torus, binned_occ, cell_names, cell_
         shuffled_lower_quant[da_key][:] = np.nan
         shuffled_upper_quant[da_key][:] = np.nan
 
-    random_numbers = np.random.rand(n_shuffles, n_cells)
+    random_numbers = np.random.rand(n_shuffles, n_cells) * 2 - 1
     toff_mat = random_numbers * (max_shuffle_offset - min_shuffle_offset) + min_shuffle_offset
 
     for cellnum in np.arange(n_cells):
@@ -695,7 +699,6 @@ def get_shuffled_data(factors, bins, factor_torus, binned_occ, cell_names, cell_
                         cell_frames[cell_ok] = j
                 if np.any(cell_frames < 0):
                     raise ValueError('no cell frame should be smaller than 0, check the code.')
-
                 for j in range(nkeys):
                     da_key = all_keys[j]
                     cleaned_rms[j, :, i], occ_mat[j, :, i], smoothed_rms[j, :, i] = get_shuffled_firing_rates(
@@ -704,10 +707,14 @@ def get_shuffled_data(factors, bins, factor_torus, binned_occ, cell_names, cell_
         else:
             base_cell_frame = np.round((cell_data - tracking_ts[0]) * frame_rate)
             base_cell_frame = base_cell_frame.astype(int)
+            n_frames = (tracking_ts[1] - tracking_ts[0]) * frame_rate + 1
             for i in np.arange(n_shuffles):
                 t_offset = toff_mat[i, cellnum]
                 n_rolling_frames = int(np.round(t_offset * frame_rate))
-                cell_frames = np.roll(base_cell_frame, n_rolling_frames)
+                cell_frames = base_cell_frame + n_rolling_frames
+                cell_frames[cell_frames > n_frames - 1] = cell_frames[cell_frames > n_frames - 1] - n_frames
+                cell_frames[cell_frames < 0] = cell_frames[cell_frames < 0] + n_frames
+                # cell_frames = np.roll(base_cell_frame, n_rolling_frames)
 
                 for j in range(nkeys):
                     da_key = all_keys[j]

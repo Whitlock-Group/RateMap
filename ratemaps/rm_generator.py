@@ -108,7 +108,8 @@ def ratemap_generator(data, cell_index=(10, 11), temp_offsets=0, n_bins_1d=36, s
                       velocity_par=(60, 18, 20), spatial_par=30,
                       self_motion_par=(0, 80, -5, 80, 3),
                       include_derivatives=True, extra_2d_tasks=None, comparing=False, pie_style=True,
-                      color_map='jet', pl_subplot=(14, 10), pl_size=(70, 70), seeds=None, debug_mode=False):
+                      color_map='jet', pl_subplot=(14, 10), pl_size=(70, 70), limit_y=True,
+                      seeds=None, debug_mode=False):
     """
     Perform shuffling. Calculate firing rate. Generate rate maps.
     :param data:
@@ -140,6 +141,7 @@ def ratemap_generator(data, cell_index=(10, 11), temp_offsets=0, n_bins_1d=36, s
     :param color_map: str, the name of color map. Default using <jet>.
     :param pl_subplot: tuple of length 2, number of rows and columns of subplots. Default (14, 10)
     :param pl_size: tuple of length 2, figure size (width, height). Default (70, 70).
+    :param limit_y: boolean, if True, the save y lims are used for every single plot.
     :param seeds: int/None, random seed for generating random numbers. If None, a seed will be generated randomly.
     :param debug_mode: False (default). if True, all steps information will be printed. Set to False on clusters.
     :return:
@@ -261,7 +263,8 @@ def ratemap_generator(data, cell_index=(10, 11), temp_offsets=0, n_bins_1d=36, s
             part2_cell_frames[da_cell_name].append(cell_frames_p2)
 
     dict_2d = get_default_2d_tasks(include_derivatives)
-    dict_2d = add_2d_tasks(dict_2d, extra_2d_tasks)
+    if extra_2d_tasks is not None:
+        dict_2d = add_2d_tasks(dict_2d, extra_2d_tasks)
 
     n_1d_map = len(factor1d) * 2
     n_2d_map = 0
@@ -484,8 +487,9 @@ def ratemap_generator(data, cell_index=(10, 11), temp_offsets=0, n_bins_1d=36, s
                     rate_maps_data['{}-{}-data_1d'.format(cell_names[cellnum], da_key[2:])] = rate_map_1d_data
                     rate_maps_data['{}-{}-info_rate'.format(cell_names[cellnum], da_key[2:])] = info_rate
                 # set ylim
-                # for j in range(len(axis_list)):
-                #     axis_list[j].set_ylim([0, max_ylim])
+                if limit_y:
+                    for j in range(len(axis_list)):
+                        axis_list[j].set_ylim([0, max_ylim])
 
                 good_max_ylim = max_ylim
 
@@ -505,8 +509,13 @@ def ratemap_generator(data, cell_index=(10, 11), temp_offsets=0, n_bins_1d=36, s
                     plt.savefig('%s_%04d_%s_at_zero.png' % (output_file_prefix, print_cell, cell_names[cellnum]))
 
                 # save data
-                scipy.io.savemat('%s_%04d_%s_for_recreating_rate_maps.mat' % (output_file_prefix, print_cell,
-                                                                              cell_names[cellnum]), rate_maps_data)
+                save_file_name = '{}_{:04d}_{}_for_recreating_rate_maps.pkl'.format(
+                    output_file_prefix, print_cell, cell_names[cellnum])
+
+                infile = open(save_file_name, 'wb')
+                pickle.dump(rate_maps_data, infile, protocol=pickle.HIGHEST_PROTOCOL)
+                infile.close()
+                # scipy.io.savemat(save_file_name, rate_maps_data)
 
             pdf.savefig()
             plt.close()
@@ -823,8 +832,9 @@ def ratemap_generator(data, cell_index=(10, 11), temp_offsets=0, n_bins_1d=36, s
                         plt.hist(vals[~np.isnan(vals)], 40)
                         subplot_index += 1
 
-                        # for k in range(len(cf_axis_list)):
-                        #     cf_axis_list[k].set_ylim([0, good_max_ylim])
+                        if limit_y:
+                            for k in range(len(cf_axis_list)):
+                                cf_axis_list[k].set_ylim([0, good_max_ylim])
 
                     cf_sort_order = np.argsort(cf_info_rates_vec)
                     cf_best_fac = np.ravel(keys_factor_1d)[cf_sort_order]
