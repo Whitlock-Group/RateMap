@@ -493,7 +493,7 @@ def ratemap_generator(data, cell_index=(10, 11), temp_offsets=0, n_bins_1d=36, s
 
                 good_max_ylim = max_ylim
 
-                sort_order = np.argsort(info_rates_vec)
+                sort_order = np.argsort(info_rates_vec)[::-1]
                 best_fac = np.ravel(keys_factor_1d)[sort_order]
                 for b_ind in range(4):
                     best_fac[b_ind] = best_fac[b_ind][2:].replace('_', ' ')
@@ -836,7 +836,7 @@ def ratemap_generator(data, cell_index=(10, 11), temp_offsets=0, n_bins_1d=36, s
                             for k in range(len(cf_axis_list)):
                                 cf_axis_list[k].set_ylim([0, good_max_ylim])
 
-                    cf_sort_order = np.argsort(cf_info_rates_vec)
+                    cf_sort_order = np.argsort(cf_info_rates_vec)[::-1]
                     cf_best_fac = np.ravel(keys_factor_1d)[cf_sort_order]
                     for b_ind in range(4):
                         cf_best_fac[b_ind] = cf_best_fac[b_ind][2:].replace('_', ' ')
