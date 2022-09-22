@@ -86,7 +86,6 @@ def get_1d_factor_bin_occ(binned_factors, n_bins, frame_validating, frame_rate, 
                 binnocc = frame_validating * (factor_bin_vals == i)
                 binned_occ[i] = float(np.sum(binnocc)) / float(frame_rate)  # in sec
 
-
         else:
             for i in range(n_bins):
                 binnocc = frame_validating * (factor_bin_vals == i)
@@ -96,8 +95,6 @@ def get_1d_factor_bin_occ(binned_factors, n_bins, frame_validating, frame_rate, 
                     part_mat = float(np.sum(binnocc * scount)) / float(frame_rate[j])  # in sec
                     total_mat.append(part_mat)
                 binned_occ[i] = np.sum(total_mat)
-
-
 
         binned_occ_dict[da_key] = binned_occ
     return binned_occ_dict
@@ -137,6 +134,30 @@ def map_cell_activity_to_tracking_frame(data, time_delay, frame_rate, tracking_t
             raise ValueError('no cell frame should be smaller than 0, check the code.')
     cell_frame = cell_frame.astype(int)
     return cell_frame
+
+
+def gaussian_smoothing_1d(raw_acc, smoothing_par, periodic):
+    smoothed_acc = raw_acc.copy()
+    xb2 = smoothing_par ** 2
+    number_of_bins = len(raw_acc)
+    if not periodic:
+        for x in np.arange(number_of_bins):
+            dist = np.exp(-0.5 * (np.arange(number_of_bins) - x) ** 2 / xb2) + 0.
+            numer = np.sum(dist * raw_acc)
+            denom = np.sum(dist)
+            smoothed_acc[x] = numer / denom + 0.
+    else:
+        xx = np.arange(number_of_bins)
+        circle_x = np.arange(3 * number_of_bins)
+        circle_y = np.hstack([raw_acc, raw_acc, raw_acc])
+        check_ind = xx + number_of_bins
+        for i in np.arange(number_of_bins):
+            cind = check_ind[i]
+            dist = np.exp(-0.5 * (np.arange(len(circle_x)) - circle_x[cind]) ** 2 / xb2) + 0.
+            numer = np.sum(dist * circle_y)
+            denom = np.sum(dist)
+            smoothed_acc[i] = numer / denom + 0.
+    return smoothed_acc
 
 
 def get_1d_ratemap(factor, bins, binned_occ, cell_frame, periodic=False, smoothing_par=1, debug_mode=False):
@@ -184,25 +205,7 @@ def get_1d_ratemap(factor, bins, binned_occ, cell_frame, periodic=False, smoothi
     # raw_firing_rates[binned_occ < occ_thresh] = 0.
 
     # add some gaussian smoothing
-    smoothed_firing_rates = binned_acc.copy()
-    xb2 = smoothing_par ** 2
-    if not periodic:
-        for x in np.arange(number_of_bins):
-            dist = np.exp(-0.5 * (np.arange(number_of_bins) - x) ** 2 / xb2) + 0.
-            numer = np.sum(dist * raw_firing_rates)
-            denom = np.sum(dist)
-            smoothed_firing_rates[x] = numer / denom + 0.
-    else:
-        xx = np.arange(number_of_bins)
-        circle_x = np.arange(3 * number_of_bins)
-        circle_y = np.hstack([raw_firing_rates, raw_firing_rates, raw_firing_rates])
-        check_ind = xx + number_of_bins
-        for i in np.arange(number_of_bins):
-            cind = check_ind[i]
-            dist = np.exp(-0.5 * (np.arange(len(circle_x)) - circle_x[cind]) ** 2 / xb2) + 0.
-            numer = np.sum(dist * circle_y)
-            denom = np.sum(dist)
-            smoothed_firing_rates[i] = numer / denom + 0.
+    smoothed_firing_rates = gaussian_smoothing_1d(raw_firing_rates, smoothing_par, periodic)
 
     if debug_mode:
         num_outside_tracking = np.sum(is_outside_tracking)
