@@ -13,6 +13,76 @@ from scipy.optimize import minimize
 import time
 
 
+def data_loader(mat_file, imu_file=None, sync_file=None):
+    """
+    Load the gui processed mat file.
+    :param mat_file: gui processed mat file.
+    :param imu_file: None(default), load imu file if given.
+    :param sync_file: None(default), load sync file if given.
+    :return: loaded mat file with the file name saved inside and correct the frame rate and so on.
+    """
+    try:
+        mat_data = scipy.io.loadmat(mat_file)
+    except (IOError, OSError, IndexError, AttributeError):
+        print('mat file: {} does not exist !!! Please check the given path.'.format(mat_file))
+        return
+
+    file_name_type = os.path.basename(mat_file)
+    file_name, file_extension = os.path.splitext(file_name_type)
+    mat_data['file_info'] = file_name
+
+    ts = np.ravel(mat_data['trackingTS'])
+    pdd = np.ravel(mat_data['pointdatadimensions'])
+
+    new_frame_rate = (pdd[2] - 1) / (ts[1] - ts[0])
+
+    time_bin_start = ts[0] - 0.5 / new_frame_rate
+    time_bins = np.arange(pdd[2] + 1) / new_frame_rate + time_bin_start
+
+    frame_times = np.arange(pdd[2]) / new_frame_rate + 0.5 / new_frame_rate
+
+    kk = list(mat_data.keys())
+    cell_count = 0
+    for i in np.arange(len(kk)):
+        if 'cellname_' in kk[i]:
+            cell_count += 1
+            cell_index_str = kk[i].split('_')[1]
+            cell_data = np.ravel(mat_data['cell_' + cell_index_str])
+
+            valid_ind = np.logical_and(cell_data <= time_bins[-1], cell_data >= time_bins[0])
+            valid_cell_data = cell_data[valid_ind]
+            valid_cell_data = valid_cell_data - time_bins[0]
+            mat_data['cell_' + cell_index_str] = valid_cell_data
+
+    time_bins = time_bins - time_bins[0]
+
+    mat_data['trackingTS'] = np.ravel(np.array([frame_times[0], frame_times[-1]]))
+    mat_data['sessionTS'] = np.ravel(np.array([time_bins[0], time_bins[-1]]))
+    mat_data['time_bins'] = time_bins
+    mat_data['frame_times'] = frame_times
+    mat_data['n_session'] = 1
+    mat_data['framerate'] = np.ravel(mat_data['framerate'])
+    mat_data['overall_framerate'] = new_frame_rate
+    mat_data['session_indicator'] = np.ones(int(pdd[2]), 'i')
+
+    if cell_count == 0:
+        raise ValueError('No cell data include. Process will be stopped.')
+
+    if imu_file is not None:
+        if not os.path.exists(imu_file):
+            raise Exception('imu file: %s does not exist !!! Please check the given path.' % imu_file)
+        imu_data = pd.read_pickle(imu_file)
+        if sync_file is None:
+            raise Exception('when imu file is given. the sync file must be given.')
+        if not os.path.exists(sync_file):
+            raise Exception('sync file: %s does not exist !!! Please check the given path.' % sync_file)
+        sync_info = pd.read_pickle(sync_file)
+
+        return mat_data, imu_data, sync_info
+
+    return mat_data
+
+
 def rotation_x(theta):
     ct = np.cos(theta)
     st = np.sin(theta)
@@ -819,74 +889,7 @@ def get_cell_data(mat_data):
     return cell_names, cell_activities
 
 
-def data_loader(mat_file, imu_file=None, sync_file=None):
-    """
-    Load the gui processed mat file.
-    :param mat_file: gui processed mat file.
-    :param imu_file: None(default), load imu file if given.
-    :param sync_file: None(default), load sync file if given.
-    :return: loaded mat file with the file name saved inside and correct the frame rate and so on.
-    """
-    try:
-        mat_data = scipy.io.loadmat(mat_file)
-    except (IOError, OSError, IndexError, AttributeError):
-        print('mat file: {} does not exist !!! Please check the given path.'.format(mat_file))
-        return
 
-    file_name_type = os.path.basename(mat_file)
-    file_name, file_extension = os.path.splitext(file_name_type)
-    mat_data['file_info'] = file_name
-
-    ts = np.ravel(mat_data['trackingTS'])
-    pdd = np.ravel(mat_data['pointdatadimensions'])
-
-    new_frame_rate = (pdd[2] - 1) / (ts[1] - ts[0])
-
-    time_bin_start = ts[0] - 0.5 / new_frame_rate
-    time_bins = np.arange(pdd[2] + 1) / new_frame_rate + time_bin_start
-
-    frame_times = np.arange(pdd[2]) / new_frame_rate + 0.5 / new_frame_rate
-
-    kk = list(mat_data.keys())
-    cell_count = 0
-    for i in np.arange(len(kk)):
-        if 'cellname_' in kk[i]:
-            cell_count += 1
-            cell_index_str = kk[i].split('_')[1]
-            cell_data = np.ravel(mat_data['cell_' + cell_index_str])
-
-            valid_ind = np.logical_and(cell_data <= time_bins[-1], cell_data >= time_bins[0])
-            valid_cell_data = cell_data[valid_ind]
-            valid_cell_data = valid_cell_data - time_bins[0]
-            mat_data['cell_' + cell_index_str] = valid_cell_data
-
-    time_bins = time_bins - time_bins[0]
-
-    mat_data['trackingTS'] = np.ravel(np.array([frame_times[0], frame_times[-1]]))
-    mat_data['sessionTS'] = np.ravel(np.array([time_bins[0], time_bins[-1]]))
-    mat_data['time_bins'] = time_bins
-    mat_data['frame_times'] = frame_times
-    mat_data['n_session'] = 1
-    mat_data['framerate'] = new_frame_rate
-    mat_data['overall_framerate'] = new_frame_rate
-    mat_data['session_indicator'] = np.ones(int(pdd[2]), 'i')
-
-    if cell_count == 0:
-        raise ValueError('No cell data include. Process will be stopped.')
-
-    if imu_file is not None:
-        if not os.path.exists(imu_file):
-            raise Exception('imu file: %s does not exist !!! Please check the given path.' % imu_file)
-        imu_data = pd.read_pickle(imu_file)
-        if sync_file is None:
-            raise Exception('when imu file is given. the sync file must be given.')
-        if not os.path.exists(sync_file):
-            raise Exception('sync file: %s does not exist !!! Please check the given path.' % sync_file)
-        sync_info = pd.read_pickle(sync_file)
-
-        return mat_data, imu_data, sync_info
-
-    return mat_data
 
 
 def data_generator(data, head_angle_thresh=(0.9, -0.9, 0.9, -0.9),
